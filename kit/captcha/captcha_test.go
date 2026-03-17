@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/mojocn/base64Captcha"
-
-	"github.com/ve-weiyi/pkg/utils/jsonconv"
 )
 
 func TestRedisStore_RandCode(t *testing.T) {
@@ -31,7 +29,8 @@ func TestCode(t *testing.T) {
 		body = map[string]interface{}{"code": 0, "msg": err.Error()}
 	}
 
-	log.Println(jsonconv.AnyToJsonIndent(body))
+	data, _ := json.MarshalIndent(body, "", "  ")
+	t.Log(string(data))
 
 }
 
