@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ve-weiyi/pkg/plugins/music/netease"
+	"github.com/ve-weiyi/vkit/plugins/music/netease"
 )
 
 type MusicPlugin struct {

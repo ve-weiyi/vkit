@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ve-weiyi/pkg/plugins/gsm/service/brand"
+	"github.com/ve-weiyi/vkit/plugins/gsm/service/brand"
 )
 
 func TestGetDeviceList(t *testing.T) {

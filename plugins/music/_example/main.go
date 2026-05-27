@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/ve-weiyi/pkg/plugins/music"
+	"github.com/ve-weiyi/vkit/plugins/music"
 )
 
 func main() {

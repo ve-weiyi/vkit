@@ -8,8 +8,8 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/ve-weiyi/pkg/plugins/gsm/util/prettifier"
-	"github.com/ve-weiyi/pkg/plugins/gsm/util/scraper"
+	"github.com/ve-weiyi/vkit/plugins/gsm/util/prettifier"
+	"github.com/ve-weiyi/vkit/plugins/gsm/util/scraper"
 )
 
 const BaseEndpoint = "http://www.gsmarena.com/"

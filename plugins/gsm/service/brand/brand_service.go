@@ -7,7 +7,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 
-	"github.com/ve-weiyi/pkg/plugins/gsm/util/scraper"
+	"github.com/ve-weiyi/vkit/plugins/gsm/util/scraper"
 )
 
 const Endpoint = "http://www.gsmarena.com/makers.php3"

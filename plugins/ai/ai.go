@@ -6,7 +6,7 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/ve-weiyi/pkg/plugins/ai/chat"
+	"github.com/ve-weiyi/vkit/plugins/ai/chat"
 )
 
 type AiPlugin struct {

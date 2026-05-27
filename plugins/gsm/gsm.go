@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ve-weiyi/pkg/plugins/gsm/service/brand"
-	"github.com/ve-weiyi/pkg/plugins/gsm/service/device"
-	"github.com/ve-weiyi/pkg/plugins/gsm/service/specification"
+	"github.com/ve-weiyi/vkit/plugins/gsm/service/brand"
+	"github.com/ve-weiyi/vkit/plugins/gsm/service/device"
+	"github.com/ve-weiyi/vkit/plugins/gsm/service/specification"
 )
 
 type GsmPlugin struct{}
