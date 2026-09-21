@@ -3,6 +3,8 @@ package dstx
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -10,9 +12,26 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Llongfile)
 }
 
+// fixturePath 把夹具拷到临时目录，避免注入直接改写源码树；夹具缺失则跳过。
+func fixturePath(t *testing.T) string {
+	t.Helper()
+
+	const src = "./test/test.go"
+	data, err := os.ReadFile(src)
+	if err != nil {
+		t.Skipf("跳过：夹具 %s 不存在 (%v)", src, err)
+	}
+
+	dst := filepath.Join(t.TempDir(), "test.go")
+	if err := os.WriteFile(dst, data, 0o600); err != nil {
+		t.Fatalf("写入临时夹具: %v", err)
+	}
+	return dst
+}
+
 func TestInject(t *testing.T) {
 	inject := AstInjectMeta{
-		FilePath: "./test/test.go",
+		FilePath: fixturePath(t),
 		//ImportMetas: []*ImportMeta{
 		//	NewImportMete(`jsoniter "github.com/json-iterator/go"`),
 		//	NewImportMete(`"go/ast"`),
@@ -49,13 +68,10 @@ func TestInject(t *testing.T) {
 	}`),
 		},
 	}
-	var err error
 	inject.Walk()
 	//err = inject.RollBack()
-	err = inject.Execute()
-	log.Println("-->", err)
-	if err != nil {
-		return
+	if err := inject.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
 	}
 }
 func TestNewAst(t *testing.T) {

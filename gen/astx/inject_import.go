@@ -8,7 +8,7 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/ve-weiyi/vkit/x/jsonconv"
+	"github.com/ve-weiyi/vkit/x/debugx"
 )
 
 // 插入 import  ImportAlias ImportPackage
@@ -50,7 +50,7 @@ func (vi *ImportMeta) Visit(node ast.Node) ast.Visitor {
 				//log.Println("ImportPackage end", vi.ImportPackage, vi.hasImported)
 				//ast.Println(token.NewFileSet(), node)
 			}
-			//log.Println("--", jsonconv.AnyToJsonIndent(genDecl.Specs))
+			//log.Println("--", debugx.Dump(genDecl.Specs))
 		} else {
 
 		}
@@ -107,5 +107,5 @@ func NewImportMete(importCode string) {
 		}
 		return true
 	})
-	log.Println("NewImportMete", jsonconv.AnyToJsonIndent(meta))
+	log.Println("NewImportMete", debugx.Dump(meta))
 }

@@ -18,19 +18,19 @@ type WechatProvider struct {
 }
 
 // NewWechatProvider 创建微信支付服务提供商
-func NewWechatProvider(config *PaymentConfig) *WechatProvider {
+func NewWechatProvider(config *PaymentConfig) (*WechatProvider, error) {
 	client, err := wechatv3.NewClientV3(config.MchId, config.SerialNo, config.ApiV3Key, config.PrivateKey)
 	if err != nil {
-		panic(fmt.Sprintf("初始化微信客户端失败: %v", err))
+		return nil, fmt.Errorf("payx: failed to init wechat client: %w", err)
 	}
 	return &WechatProvider{
 		config: config,
 		client: client,
-	}
+	}, nil
 }
 
 func (p *WechatProvider) GetProviderName() string {
-	return "wechat"
+	return ProviderWechat
 }
 
 // CreateOrder 创建微信Native支付订单

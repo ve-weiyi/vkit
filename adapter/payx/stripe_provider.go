@@ -24,7 +24,7 @@ func NewStripeProvider(config *PaymentConfig) *StripeProvider {
 }
 
 func (p *StripeProvider) GetProviderName() string {
-	return "stripe"
+	return ProviderStripe
 }
 
 // CreateOrder 创建Stripe Checkout Session

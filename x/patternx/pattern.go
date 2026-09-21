@@ -7,22 +7,29 @@ import (
 	"strings"
 )
 
+// 正则提到包级：写在函数体内会每次调用重新编译
+var (
+	emailPattern   = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	mobilePattern  = regexp.MustCompile(`^1[3456789]\d{9}$`)
+	digitPattern   = regexp.MustCompile(`^\d+$`)
+	versionPattern = regexp.MustCompile(`^(V)?\d{1,4}(\.\d{1,4}){1,3}$`)
+)
+
 func IsValidEmail(email string) bool {
-	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
-	return regexp.MustCompile(pattern).MatchString(email)
+	return emailPattern.MatchString(email)
 }
 
 func IsValidMobile(mobile string) bool {
-	return regexp.MustCompile(`^1[3456789]\d{9}$`).MatchString(mobile)
+	return mobilePattern.MatchString(mobile)
 }
 
 func IsValidDigit(digit string) bool {
-	return regexp.MustCompile(`^\d+$`).MatchString(digit)
+	return digitPattern.MatchString(digit)
 }
 
 // Valid version could be V1.0, V1.2.3, or V1.2.3.4
 func IsValidVersion(version string) bool {
-	return regexp.MustCompile(`^(V)?\d{1,4}(\.\d{1,4}){1,3}$`).MatchString(version)
+	return versionPattern.MatchString(version)
 }
 
 func CompareVersions(newVersion, oldVersion string) (int, error) {

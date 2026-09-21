@@ -3,24 +3,12 @@ package jwtx
 import (
 	"testing"
 	"time"
-
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func Test_JwtInstance_GenerateJWT(t *testing.T) {
-	t.Log(jwt.RegisteredClaims{
-		Issuer:    "iss",
-		Subject:   "sub",
-		Audience:  jwt.ClaimStrings{"aud"},
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(3600 * time.Second)),
-		NotBefore: jwt.NewNumericDate(time.Now()),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		ID:        "id",
-	})
-	t.Log(jwt.MapClaims{})
-
 	jt := NewJwtInstance([]byte("2024/3/23"))
-	token, _ := jt.CreateToken(
+
+	token, err := jt.CreateToken(
 		WithIssuer("test"),
 		WithSubject("test"),
 		WithAudience("test"),
@@ -29,10 +17,25 @@ func Test_JwtInstance_GenerateJWT(t *testing.T) {
 		WithIssuedAt(time.Now().Unix()),
 		WithId("test"),
 		WithClaimExt("test", "test"),
-	) // 生成有效期为24小时的 JWT
-	t.Log(token)
+	)
+	if err != nil {
+		t.Fatalf("CreateToken: %v", err)
+	}
+	if token == "" {
+		t.Fatal("CreateToken 返回空 token")
+	}
 
 	tk, err := jt.ParseToken(token)
-	t.Log(tk)
-	t.Log(err)
+	if err != nil {
+		t.Fatalf("ParseToken: %v", err)
+	}
+	if tk == nil || !tk.Valid {
+		t.Fatal("解析出的 token 应为有效")
+	}
+
+	// 换一把密钥应当解析失败
+	other := NewJwtInstance([]byte("another-key"))
+	if _, err := other.ParseToken(token); err == nil {
+		t.Error("用不同密钥解析应失败")
+	}
 }

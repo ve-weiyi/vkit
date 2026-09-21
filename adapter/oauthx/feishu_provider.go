@@ -1,7 +1,7 @@
 package oauthx
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"log"
 
@@ -10,6 +10,7 @@ import (
 
 type feishuProvider struct {
 	config             *OAuthConfig
+	client             *httpx.Client
 	authorizeUrl       string
 	appAccessTokenUrl  string
 	userAccessTokenUrl string
@@ -19,6 +20,7 @@ type feishuProvider struct {
 func newFeishuProvider(config *OAuthConfig) *feishuProvider {
 	return &feishuProvider{
 		config:             config,
+		client:             httpx.New(),
 		authorizeUrl:       "https://open.feishu.cn/open-apis/authen/v1/authorize",
 		appAccessTokenUrl:  "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal",
 		userAccessTokenUrl: "https://open.feishu.cn/open-apis/authen/v1/oidc/access_token",
@@ -26,26 +28,24 @@ func newFeishuProvider(config *OAuthConfig) *feishuProvider {
 	}
 }
 
-func (p *feishuProvider) GetName() string { return "feishu" }
+func (p *feishuProvider) GetName() string { return ProviderFeishu }
 
 func (p *feishuProvider) GetAuthLoginUrl(state string) string {
-	return httpx.NewRequest("GET", p.authorizeUrl,
-		httpx.WithParams(map[string]string{
-			"app_id":       p.config.ClientId,
-			"redirect_uri": p.config.RedirectUri,
-			"scope":        "contact:user.base:readonly",
-			"state":        state,
-		}),
-	).EncodeURL()
+	return buildAuthorizeURL(p.authorizeUrl, map[string]string{
+		"app_id":       p.config.ClientId,
+		"redirect_uri": p.config.RedirectUri,
+		"scope":        "contact:user.base:readonly",
+		"state":        state,
+	})
 }
 
-func (p *feishuProvider) GetAuthUserInfo(code string) (*UserResult, error) {
-	token, err := p.getUserAccessToken(code)
+func (p *feishuProvider) GetAuthUserInfo(ctx context.Context, code string) (*UserResult, error) {
+	token, err := p.getUserAccessToken(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 
-	info, err := p.getUserInfo(token.Data.AccessToken)
+	info, err := p.getUserInfo(ctx, token.Data.AccessToken)
 	if err != nil {
 		return nil, err
 	}
@@ -62,76 +62,72 @@ func (p *feishuProvider) GetAuthUserInfo(code string) (*UserResult, error) {
 	}, nil
 }
 
-func (p *feishuProvider) getAppAccessToken() (*feishuAppTokenResp, error) {
-	body, err := httpx.NewRequest("POST", p.appAccessTokenUrl,
-		httpx.WithParams(map[string]string{
-			"app_id":     p.config.ClientId,
-			"app_secret": p.config.ClientSecret,
-		}),
-	).Do()
+func (p *feishuProvider) getAppAccessToken(ctx context.Context) (*feishuAppTokenResp, error) {
+	resp, err := p.client.Post(ctx, p.appAccessTokenUrl,
+		httpx.WithQuery("app_id", p.config.ClientId),
+		httpx.WithQuery("app_secret", p.config.ClientSecret),
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("feishu app token:", string(body))
-	var resp feishuAppTokenResp
-	if err = json.Unmarshal(body, &resp); err != nil {
+	log.Println("feishu app token:", string(resp.Body))
+
+	var out feishuAppTokenResp
+	if err = resp.Unmarshal(&out); err != nil {
 		return nil, err
 	}
-	if resp.Code != 0 {
-		return nil, fmt.Errorf("get app access token failed: %s", resp.Msg)
+	if out.Code != 0 {
+		return nil, fmt.Errorf("get app access token failed: %s", out.Msg)
 	}
-	return &resp, nil
+	return &out, nil
 }
 
-func (p *feishuProvider) getUserAccessToken(code string) (*feishuUserAccessTokenResp, error) {
-	tt, err := p.getAppAccessToken()
+func (p *feishuProvider) getUserAccessToken(ctx context.Context, code string) (*feishuUserAccessTokenResp, error) {
+	tt, err := p.getAppAccessToken(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	body, err := httpx.NewRequest("POST", p.userAccessTokenUrl,
-		httpx.WithHeaders(map[string]string{
-			"Authorization": fmt.Sprintf("Bearer %s", tt.AppAccessToken),
-			"Content-Type":  "application/json; charset=utf-8",
-		}),
-		httpx.WithBodyJson(map[string]any{
+	resp, err := p.client.Post(ctx, p.userAccessTokenUrl,
+		httpx.WithHeader("Authorization", fmt.Sprintf("Bearer %s", tt.AppAccessToken)),
+		httpx.WithJSON(map[string]any{
 			"grant_type": "authorization_code",
 			"code":       code,
 		}),
-	).Do()
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("feishu user token:", string(body))
-	var resp feishuUserAccessTokenResp
-	if err = json.Unmarshal(body, &resp); err != nil {
+	log.Println("feishu user token:", string(resp.Body))
+
+	var out feishuUserAccessTokenResp
+	if err = resp.Unmarshal(&out); err != nil {
 		return nil, err
 	}
-	if resp.Code != 0 {
-		return nil, fmt.Errorf("get user access token failed: %s", resp.Msg)
+	if out.Code != 0 {
+		return nil, fmt.Errorf("get user access token failed: %s", out.Msg)
 	}
-	return &resp, nil
+	return &out, nil
 }
 
-func (p *feishuProvider) getUserInfo(accessToken string) (*feishuUserInfoResp, error) {
-	body, err := httpx.NewRequest("GET", p.userInfoUrl,
-		httpx.WithHeaders(map[string]string{
-			"Authorization": fmt.Sprintf("Bearer %s", accessToken),
-			"Content-Type":  "application/json; charset=utf-8",
-		}),
-	).Do()
+func (p *feishuProvider) getUserInfo(ctx context.Context, accessToken string) (*feishuUserInfoResp, error) {
+	resp, err := p.client.Get(ctx, p.userInfoUrl,
+		httpx.WithHeader("Authorization", fmt.Sprintf("Bearer %s", accessToken)),
+		httpx.WithHeader("Content-Type", "application/json; charset=utf-8"),
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("feishu userinfo:", string(body))
-	var resp feishuUserInfoResp
-	if err = json.Unmarshal(body, &resp); err != nil {
+	log.Println("feishu userinfo:", string(resp.Body))
+
+	var out feishuUserInfoResp
+	if err = resp.Unmarshal(&out); err != nil {
 		return nil, err
 	}
-	if resp.Code != 0 {
-		return nil, fmt.Errorf("get user info failed: %s", resp.Msg)
+	if out.Code != 0 {
+		return nil, fmt.Errorf("get user info failed: %s", out.Msg)
 	}
-	return &resp, nil
+	return &out, nil
 }
 
 type feishuAppTokenResp struct {

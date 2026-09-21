@@ -116,7 +116,7 @@ func getTotalPage(s *goquery.Selection) (totalPage int, err error) {
 
 		pages = append(pages, page)
 	}
-	totalPage = max(pages)
+	totalPage = maxInt(pages)
 
 	if totalPage == 0 {
 		totalPage = 1
@@ -125,7 +125,7 @@ func getTotalPage(s *goquery.Selection) (totalPage int, err error) {
 	return
 }
 
-func max(slice []int) int {
+func maxInt(slice []int) int {
 	var m int
 	for _, e := range slice {
 		if e > m {

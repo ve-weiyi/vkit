@@ -8,13 +8,11 @@ import (
 func Join[S ~[]E, E any](s S, sep string) string {
 	var out string
 
-	for _, e := range s {
-		if out == "" {
-			out = out + fmt.Sprintf("%v", e)
-		} else {
-			out = out + sep
-			out = out + fmt.Sprintf("%v", e)
+	for i, e := range s {
+		if i > 0 {
+			out += sep
 		}
+		out += fmt.Sprintf("%v", e)
 	}
 
 	return out

@@ -12,9 +12,9 @@ func TestMockSmsProvider(t *testing.T) {
 		SignName: "测试签名",
 	}
 
-	provider := NewSmsProvider(config)
-	if provider == nil {
-		t.Fatal("Failed to create mock SMS provider")
+	provider, err := NewSmsProvider(config)
+	if err != nil {
+		t.Fatalf("NewSmsProvider: %v", err)
 	}
 
 	if provider.GetProviderName() != "mock" {
@@ -24,7 +24,7 @@ func TestMockSmsProvider(t *testing.T) {
 	ctx := context.Background()
 
 	// 测试发送验证码
-	err := provider.SendCode(ctx, "13959777439", "login", "123456", 15)
+	err = provider.SendCode(ctx, "13800138000", "login", "123456", 15)
 	if err != nil {
 		t.Errorf("SendCode failed: %v", err)
 	}
@@ -34,64 +34,40 @@ func TestMockSmsProvider(t *testing.T) {
 		"code": "654321",
 		"time": "5",
 	}
-	err = provider.SendTemplate(ctx, "13959777439", "SMS_TEST", params)
+	err = provider.SendTemplate(ctx, "13800138000", "SMS_TEST", params)
 	if err != nil {
 		t.Errorf("SendTemplate failed: %v", err)
 	}
 }
 
-// TestAliyunSmsProvider 测试阿里云短信服务提供商
-func TestAliyunSmsProvider(t *testing.T) {
-	// 跳过测试，除非设置了真实的凭证
+// TestGetTemplateCode 测试模板映射：配置优先，未配置回落默认，未知场景返回空
+func TestGetTemplateCode(t *testing.T) {
+	override := map[string]string{"login": "CUSTOM_LOGIN"}
 
-	config := &SmsConfig{
-		Provider:  "aliyun",
-		AccessKey: "xx",
-		SecretKey: "xx",
-		SignName:  "xx",
-		Templates: map[string]string{
-			"code":  "SMS_501860619",
-			"login": "SMS_501755620",
-		},
+	cases := []struct {
+		name   string
+		config *SmsConfig
+		scene  string
+		want   string
+	}{
+		{"mock 前缀", &SmsConfig{Provider: "mock"}, "login", "MOCK_login"},
+		{"aliyun 未配置返回空", &SmsConfig{Provider: "aliyun"}, "login", ""},
+		{"aliyun 配置覆盖", &SmsConfig{Provider: "aliyun", Templates: override}, "login", "CUSTOM_LOGIN"},
+		{"aliyun 未知场景", &SmsConfig{Provider: "aliyun"}, "unknown", ""},
+		{"tencent 未配置返回空", &SmsConfig{Provider: "tencent"}, "register", ""},
+		{"tencent 配置覆盖", &SmsConfig{Provider: "tencent", Templates: override}, "login", "CUSTOM_LOGIN"},
+		{"tencent 未知场景", &SmsConfig{Provider: "tencent"}, "unknown", ""},
 	}
 
-	provider := NewSmsProvider(config)
-	if provider == nil {
-		t.Fatal("Failed to create Aliyun SMS provider")
-	}
-
-	ctx := context.Background()
-	err := provider.SendCode(ctx, "13959777439", "code", "123456", 15)
-	if err != nil {
-		t.Errorf("SendCode failed: %v", err)
-	}
-}
-
-// TestTencentSmsProvider 测试腾讯云短信服务提供商
-func TestTencentSmsProvider(t *testing.T) {
-	// 跳过测试，除非设置了真实的凭证
-	t.Skip("Skipping Tencent SMS test - requires real credentials")
-
-	config := &SmsConfig{
-		Provider:  "tencent",
-		AccessKey: "your-secret-id",
-		SecretKey: "your-secret-key",
-		SignName:  "your-sign-name",
-		Region:    "ap-guangzhou",
-		SdkAppId:  "your-sdk-app-id",
-		Templates: map[string]string{
-			"login": "1000001",
-		},
-	}
-
-	provider := NewSmsProvider(config)
-	if provider == nil {
-		t.Fatal("Failed to create Tencent SMS provider")
-	}
-
-	ctx := context.Background()
-	err := provider.SendCode(ctx, "13959777439", "login", "123456", 15)
-	if err != nil {
-		t.Errorf("SendCode failed: %v", err)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			provider, err := NewSmsProvider(c.config)
+			if err != nil {
+				t.Fatalf("NewSmsProvider(%s): %v", c.name, err)
+			}
+			if got := provider.GetTemplateCode(c.scene); got != c.want {
+				t.Errorf("GetTemplateCode(%q) = %q, want %q", c.scene, got, c.want)
+			}
+		})
 	}
 }

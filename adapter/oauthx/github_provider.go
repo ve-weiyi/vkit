@@ -1,7 +1,7 @@
 package oauthx
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -11,6 +11,7 @@ import (
 
 type githubProvider struct {
 	config         *OAuthConfig
+	client         *httpx.Client
 	authorizeUrl   string
 	accessTokenUrl string
 	userInfoUrl    string
@@ -19,31 +20,30 @@ type githubProvider struct {
 func newGithubProvider(config *OAuthConfig) *githubProvider {
 	return &githubProvider{
 		config:         config,
+		client:         httpx.New(),
 		authorizeUrl:   "https://github.com/login/oauth/authorize",
 		accessTokenUrl: "https://github.com/login/oauth/access_token",
 		userInfoUrl:    "https://api.github.com/user",
 	}
 }
 
-func (p *githubProvider) GetName() string { return "github" }
+func (p *githubProvider) GetName() string { return ProviderGithub }
 
 func (p *githubProvider) GetAuthLoginUrl(state string) string {
-	return httpx.NewRequest("GET", p.authorizeUrl,
-		httpx.WithParams(map[string]string{
-			"client_id":    p.config.ClientId,
-			"redirect_uri": p.config.RedirectUri,
-			"state":        state,
-		}),
-	).EncodeURL()
+	return buildAuthorizeURL(p.authorizeUrl, map[string]string{
+		"client_id":    p.config.ClientId,
+		"redirect_uri": p.config.RedirectUri,
+		"state":        state,
+	})
 }
 
-func (p *githubProvider) GetAuthUserInfo(code string) (*UserResult, error) {
-	token, err := p.getAccessToken(code)
+func (p *githubProvider) GetAuthUserInfo(ctx context.Context, code string) (*UserResult, error) {
+	token, err := p.getAccessToken(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := p.getUserInfo(token.AccessToken)
+	user, err := p.getUserInfo(ctx, token.AccessToken)
 	if err != nil {
 		return nil, err
 	}
@@ -61,39 +61,35 @@ func (p *githubProvider) GetAuthUserInfo(code string) (*UserResult, error) {
 	return resp, nil
 }
 
-func (p *githubProvider) getAccessToken(code string) (*githubToken, error) {
-	body, err := httpx.NewRequest("POST", p.accessTokenUrl,
-		httpx.WithHeaders(map[string]string{
-			"Authorization": fmt.Sprintf("Bearer %s", code),
-			"Content-Type":  "application/json; charset=utf-8",
-			"Accept":        "application/json",
-		}),
-		httpx.WithParams(map[string]string{
-			"client_id":     p.config.ClientId,
-			"client_secret": p.config.ClientSecret,
-			"code":          code,
-			"redirect_uri":  p.config.RedirectUri,
-		}),
-	).Do()
+func (p *githubProvider) getAccessToken(ctx context.Context, code string) (*githubToken, error) {
+	resp, err := p.client.Post(ctx, p.accessTokenUrl,
+		httpx.WithHeader("Authorization", fmt.Sprintf("Bearer %s", code)),
+		httpx.WithHeader("Content-Type", "application/json; charset=utf-8"),
+		httpx.WithHeader("Accept", "application/json"),
+		httpx.WithQuery("client_id", p.config.ClientId),
+		httpx.WithQuery("client_secret", p.config.ClientSecret),
+		httpx.WithQuery("code", code),
+		httpx.WithQuery("redirect_uri", p.config.RedirectUri),
+	)
 	if err != nil {
 		return nil, err
 	}
-	var resp githubToken
-	return &resp, json.Unmarshal(body, &resp)
+
+	var out githubToken
+	return &out, resp.Unmarshal(&out)
 }
 
-func (p *githubProvider) getUserInfo(accessToken string) (*githubUserInfo, error) {
-	body, err := httpx.NewRequest("GET", p.userInfoUrl,
-		httpx.WithHeaders(map[string]string{
-			"Authorization": fmt.Sprintf("Bearer %s", accessToken),
-			"Content-Type":  "application/json; charset=utf-8",
-		}),
-	).Do()
+func (p *githubProvider) getUserInfo(ctx context.Context, accessToken string) (*githubUserInfo, error) {
+	resp, err := p.client.Get(ctx, p.userInfoUrl,
+		httpx.WithHeader("Authorization", fmt.Sprintf("Bearer %s", accessToken)),
+		httpx.WithHeader("Content-Type", "application/json; charset=utf-8"),
+	)
 	if err != nil {
 		return nil, err
 	}
-	var resp githubUserInfo
-	return &resp, json.Unmarshal(body, &resp)
+
+	var out githubUserInfo
+	return &out, resp.Unmarshal(&out)
 }
 
 type githubToken struct {

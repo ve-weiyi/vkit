@@ -21,14 +21,18 @@ func NewMockProvider(config *PaymentConfig) *MockProvider {
 }
 
 func (p *MockProvider) GetProviderName() string {
-	return "mock"
+	return ProviderMock
 }
 
 // CreateOrder 创建Mock支付订单
 func (p *MockProvider) CreateOrder(ctx context.Context, req *CreateOrderRequest) (*CreateOrderResponse, error) {
+	channelOrderNo, err := randomx.GenerateOrderNo()
+	if err != nil {
+		return nil, err
+	}
 	return &CreateOrderResponse{
 		OrderNo:        req.OrderNo,
-		ChannelOrderNo: randomx.GenerateOrderNo(),
+		ChannelOrderNo: channelOrderNo,
 		PayURL:         fmt.Sprintf("http://mock-pay.example.com/pay?order_no=%s", req.OrderNo),
 		QRCode:         fmt.Sprintf("http://mock-pay.example.com/qrcode?order_no=%s", req.OrderNo),
 	}, nil
@@ -36,9 +40,13 @@ func (p *MockProvider) CreateOrder(ctx context.Context, req *CreateOrderRequest)
 
 // QueryOrder 查询Mock订单状态
 func (p *MockProvider) QueryOrder(ctx context.Context, orderNo string) (*OrderQueryResponse, error) {
+	channelOrderNo, err := randomx.GenerateOrderNo()
+	if err != nil {
+		return nil, err
+	}
 	return &OrderQueryResponse{
 		OrderNo:        orderNo,
-		ChannelOrderNo: randomx.GenerateOrderNo(),
+		ChannelOrderNo: channelOrderNo,
 		Status:         "SUCCESS",
 		Amount:         100.00,
 		PaidAmount:     100.00,
@@ -53,9 +61,13 @@ func (p *MockProvider) CloseOrder(ctx context.Context, orderNo string) error {
 
 // Refund Mock退款
 func (p *MockProvider) Refund(ctx context.Context, req *RefundRequest) (*RefundResponse, error) {
+	channelRefundNo, err := randomx.GenerateOrderNo()
+	if err != nil {
+		return nil, err
+	}
 	return &RefundResponse{
 		RefundNo:        req.RefundNo,
-		ChannelRefundNo: randomx.GenerateOrderNo(),
+		ChannelRefundNo: channelRefundNo,
 		RefundAmount:    req.RefundAmount,
 		RefundAt:        time.Now(),
 		Status:          "SUCCESS",
@@ -74,9 +86,14 @@ func (p *MockProvider) VerifyNotifyData(formData map[string]string, bodyData []b
 		return nil, fmt.Errorf("订单号不能为空")
 	}
 
+	channelOrderNo, err := randomx.GenerateOrderNo()
+	if err != nil {
+		return nil, err
+	}
+
 	return &NotifyData{
 		OrderNo:        orderNo,
-		ChannelOrderNo: randomx.GenerateOrderNo(),
+		ChannelOrderNo: channelOrderNo,
 		Status:         "SUCCESS",
 		Amount:         100.00,
 		PaidAmount:     100.00,

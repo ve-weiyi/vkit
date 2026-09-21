@@ -2,6 +2,7 @@ package astx
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -109,7 +110,7 @@ func (vi *AstInjectionMeta) Inject() error {
 	buffer := bytes.NewBuffer(output)
 	err = format.Node(buffer, fSet, fParser)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("astx: format node: %w", err)
 	}
 	// 写回数据
 	return os.WriteFile(vi.FilePath, buffer.Bytes(), 0o600)
@@ -150,7 +151,7 @@ func (vi *AstInjectionMeta) RollBack() error {
 	buffer := bytes.NewBuffer(output)
 	err = format.Node(buffer, fSet, fParser)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("astx: format node: %w", err)
 	}
 	// 写回数据
 	return os.WriteFile(vi.FilePath, buffer.Bytes(), 0o600)

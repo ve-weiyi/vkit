@@ -1,5 +1,7 @@
 package oauthx
 
+import "context"
+
 // UserResult 统一的用户信息结构
 type UserResult struct {
 	OpenId   string `json:"open_id"`    // 用户在开放平台的唯一标识
@@ -31,5 +33,5 @@ type OAuthProvider interface {
 	GetAuthLoginUrl(state string) string
 
 	// GetAuthUserInfo 通过授权码获取用户信息
-	GetAuthUserInfo(code string) (*UserResult, error)
+	GetAuthUserInfo(ctx context.Context, code string) (*UserResult, error)
 }

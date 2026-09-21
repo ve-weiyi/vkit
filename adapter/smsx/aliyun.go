@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/dysmsapi"
-	"github.com/zeromicro/go-zero/core/logx"
 )
 
 // AliyunSmsProvider 阿里云短信服务提供商
@@ -24,7 +23,6 @@ func NewAliyunSmsProvider(config *SmsConfig) *AliyunSmsProvider {
 		config.SecretKey,
 	)
 	if err != nil {
-		logx.Errorf("Failed to create Aliyun SMS client: %v", err)
 		return nil
 	}
 
@@ -64,7 +62,6 @@ func (p *AliyunSmsProvider) SendTemplate(ctx context.Context, phone, templateCod
 	if len(params) > 0 {
 		paramsJSON, err := json.Marshal(params)
 		if err != nil {
-			logx.Errorf("Failed to marshal template params: %v", err)
 			return fmt.Errorf("failed to marshal template params: %w", err)
 		}
 		request.TemplateParam = string(paramsJSON)
@@ -73,23 +70,20 @@ func (p *AliyunSmsProvider) SendTemplate(ctx context.Context, phone, templateCod
 	// 发送短信
 	response, err := p.client.SendSms(request)
 	if err != nil {
-		logx.Errorf("Failed to send SMS via Aliyun: %v", err)
 		return fmt.Errorf("failed to send SMS: %w", err)
 	}
 
 	// 检查响应
 	if response.Code != "OK" {
-		logx.Errorf("Aliyun SMS send failed: Code=%s, Message=%s", response.Code, response.Message)
 		return fmt.Errorf("SMS send failed: %s - %s", response.Code, response.Message)
 	}
 
-	logx.Infof("Aliyun SMS sent successfully: Phone=%s, BizId=%s", phone, response.BizId)
 	return nil
 }
 
 // GetProviderName 获取服务商名称
 func (p *AliyunSmsProvider) GetProviderName() string {
-	return "aliyun"
+	return ProviderAliyun
 }
 
 // GetTemplateCode 根据场景获取模板代码
@@ -105,14 +99,7 @@ func (p *AliyunSmsProvider) getTemplateCode(codeType string) string {
 		}
 	}
 
-	// 默认模板代码（如果配置中没有指定）
-	defaultTemplates := map[string]string{
-		"login":          "SMS_LOGIN",
-		"register":       "SMS_REGISTER",
-		"reset_password": "SMS_RESET_PASSWORD",
-		"bind_email":     "SMS_BIND_EMAIL",
-		"bind_phone":     "SMS_BIND_PHONE",
-	}
-
-	return defaultTemplates[codeType]
+	// 不再内置兜底模板代码：占位值会在未配置时把短信真的发出去（且内容错误），
+	// 必须返回空串交由调用方报错，逼迫配置到位
+	return ""
 }

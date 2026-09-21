@@ -49,9 +49,16 @@ func (p *MusicPlugin) Handler(prefix string) http.HandlerFunc {
 			return
 		}
 
+		// 上游调用失败必须在这里就返回：否则会被下面的 json.Marshal 覆盖，
+		// 把失败当成 200 + null 交给调用方
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
+			return
+		}
+
 		body, err := json.Marshal(data)
 		if err != nil {
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 

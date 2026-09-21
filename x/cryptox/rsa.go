@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	RSA_KEY_SIZE = 1024
+	// RSA_KEY_SIZE 密钥位数，2048 是现代最低强度（1024 已被认为不安全）
+	RSA_KEY_SIZE = 2048
 )
 
 func base64PrivateKey(privateKey *rsa.PrivateKey) string {
@@ -23,16 +24,16 @@ func base64PublicKey(publicKey *rsa.PublicKey) (string, error) {
 	return base64.StdEncoding.EncodeToString(publicBytes), nil
 }
 
-func GenerateRsaKeys() (string, string) {
-	var public_key, private_key string
-	for {
-		key, err := rsa.GenerateKey(rand.Reader, RSA_KEY_SIZE)
-		if err != nil {
-			break
-		}
-		private_key = base64PrivateKey(key)
-		public_key, _ = base64PublicKey(&(key.PublicKey))
-		break
+func GenerateRsaKeys() (publicKey string, privateKey string, err error) {
+	key, err := rsa.GenerateKey(rand.Reader, RSA_KEY_SIZE)
+	if err != nil {
+		return "", "", err
 	}
-	return public_key, private_key
+
+	publicKey, err = base64PublicKey(&(key.PublicKey))
+	if err != nil {
+		return "", "", err
+	}
+
+	return publicKey, base64PrivateKey(key), nil
 }

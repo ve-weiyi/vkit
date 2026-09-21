@@ -1,7 +1,7 @@
 package oauthx
 
 import (
-	"encoding/json"
+	"context"
 	"log"
 
 	"github.com/ve-weiyi/vkit/x/httpx"
@@ -9,6 +9,7 @@ import (
 
 type qqProvider struct {
 	config          *OAuthConfig
+	client          *httpx.Client
 	authorizeUrl    string
 	accessTokenUrl  string
 	refreshTokenUrl string
@@ -19,6 +20,7 @@ type qqProvider struct {
 func newQQProvider(config *OAuthConfig) *qqProvider {
 	return &qqProvider{
 		config:          config,
+		client:          httpx.New(),
 		authorizeUrl:    "https://graph.qq.com/oauth2.0/authorize",
 		accessTokenUrl:  "https://graph.qq.com/oauth2.0/token",
 		refreshTokenUrl: "https://graph.qq.com/oauth2.0/token",
@@ -27,31 +29,29 @@ func newQQProvider(config *OAuthConfig) *qqProvider {
 	}
 }
 
-func (p *qqProvider) GetName() string { return "qq" }
+func (p *qqProvider) GetName() string { return ProviderQQ }
 
 func (p *qqProvider) GetAuthLoginUrl(state string) string {
-	return httpx.NewRequest("GET", p.authorizeUrl,
-		httpx.WithParams(map[string]string{
-			"client_id":     p.config.ClientId,
-			"redirect_uri":  p.config.RedirectUri,
-			"state":         state,
-			"response_type": "code",
-		}),
-	).EncodeURL()
+	return buildAuthorizeURL(p.authorizeUrl, map[string]string{
+		"client_id":     p.config.ClientId,
+		"redirect_uri":  p.config.RedirectUri,
+		"state":         state,
+		"response_type": "code",
+	})
 }
 
-func (p *qqProvider) GetAuthUserInfo(code string) (*UserResult, error) {
-	token, err := p.getAccessToken(code)
+func (p *qqProvider) GetAuthUserInfo(ctx context.Context, code string) (*UserResult, error) {
+	token, err := p.getAccessToken(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 
-	open, err := p.getOpenid(token.AccessToken)
+	open, err := p.getOpenid(ctx, token.AccessToken)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := p.getUserInfo(token.AccessToken, open.OpenId)
+	user, err := p.getUserInfo(ctx, token.AccessToken, open.OpenId)
 	if err != nil {
 		return nil, err
 	}
@@ -65,54 +65,51 @@ func (p *qqProvider) GetAuthUserInfo(code string) (*UserResult, error) {
 	}, nil
 }
 
-func (p *qqProvider) getAccessToken(code string) (*qqToken, error) {
-	body, err := httpx.NewRequest("GET", p.accessTokenUrl,
-		httpx.WithParams(map[string]string{
-			"client_id":     p.config.ClientId,
-			"client_secret": p.config.ClientSecret,
-			"redirect_uri":  p.config.RedirectUri,
-			"code":          code,
-			"grant_type":    "authorization_code",
-			"fmt":           "json",
-		}),
-	).Do()
+func (p *qqProvider) getAccessToken(ctx context.Context, code string) (*qqToken, error) {
+	resp, err := p.client.Get(ctx, p.accessTokenUrl,
+		httpx.WithQuery("client_id", p.config.ClientId),
+		httpx.WithQuery("client_secret", p.config.ClientSecret),
+		httpx.WithQuery("redirect_uri", p.config.RedirectUri),
+		httpx.WithQuery("code", code),
+		httpx.WithQuery("grant_type", "authorization_code"),
+		httpx.WithQuery("fmt", "json"),
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("qq token:", string(body))
-	var resp qqToken
-	return &resp, json.Unmarshal(body, &resp)
+	log.Println("qq token:", string(resp.Body))
+
+	var out qqToken
+	return &out, resp.Unmarshal(&out)
 }
 
-func (p *qqProvider) getOpenid(accessToken string) (*qqOpenResult, error) {
-	body, err := httpx.NewRequest("GET", p.openidUrl,
-		httpx.WithParams(map[string]string{
-			"access_token": accessToken,
-			"fmt":          "json",
-		}),
-	).Do()
+func (p *qqProvider) getOpenid(ctx context.Context, accessToken string) (*qqOpenResult, error) {
+	resp, err := p.client.Get(ctx, p.openidUrl,
+		httpx.WithQuery("access_token", accessToken),
+		httpx.WithQuery("fmt", "json"),
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("qq openid:", string(body))
-	var resp qqOpenResult
-	return &resp, json.Unmarshal(body, &resp)
+	log.Println("qq openid:", string(resp.Body))
+
+	var out qqOpenResult
+	return &out, resp.Unmarshal(&out)
 }
 
-func (p *qqProvider) getUserInfo(accessToken, openId string) (*qqUserInfo, error) {
-	body, err := httpx.NewRequest("GET", p.userInfoUrl,
-		httpx.WithParams(map[string]string{
-			"openid":             openId,
-			"access_token":       accessToken,
-			"oauth_consumer_key": p.config.ClientId,
-		}),
-	).Do()
+func (p *qqProvider) getUserInfo(ctx context.Context, accessToken, openId string) (*qqUserInfo, error) {
+	resp, err := p.client.Get(ctx, p.userInfoUrl,
+		httpx.WithQuery("openid", openId),
+		httpx.WithQuery("access_token", accessToken),
+		httpx.WithQuery("oauth_consumer_key", p.config.ClientId),
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("qq userinfo:", string(body))
-	var resp qqUserInfo
-	return &resp, json.Unmarshal(body, &resp)
+	log.Println("qq userinfo:", string(resp.Body))
+
+	var out qqUserInfo
+	return &out, resp.Unmarshal(&out)
 }
 
 type qqToken struct {

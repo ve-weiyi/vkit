@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 )
@@ -17,9 +18,26 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Llongfile)
 }
 
+// fixturePath 把夹具拷到临时目录，避免注入直接改写源码树；夹具缺失则跳过。
+func fixturePath(t *testing.T) string {
+	t.Helper()
+
+	const src = "../ast/test/test.go"
+	data, err := os.ReadFile(src)
+	if err != nil {
+		t.Skipf("跳过：夹具 %s 不存在 (%v)", src, err)
+	}
+
+	dst := filepath.Join(t.TempDir(), "test.go")
+	if err := os.WriteFile(dst, data, 0o600); err != nil {
+		t.Fatalf("写入临时夹具: %v", err)
+	}
+	return dst
+}
+
 func TestInject(t *testing.T) {
 	inject := AstInjectionMeta{
-		FilePath: "../ast/test/test.go",
+		FilePath: fixturePath(t),
 		ImportMetas: []*ImportMeta{
 			&ImportMeta{
 				ImportAlias:   "jsoniter",
@@ -56,13 +74,10 @@ func TestInject(t *testing.T) {
 			//},
 		},
 	}
-	var err error
 	//inject.Walk()
 	//err = inject.RollBack()
-	err = inject.Inject()
-	log.Println("-->", err)
-	if err != nil {
-		return
+	if err := inject.Inject(); err != nil {
+		t.Fatalf("Inject: %v", err)
 	}
 }
 func TestNewAst(t *testing.T) {
@@ -73,10 +88,12 @@ func TestNewAst(t *testing.T) {
 
 func TestParse(t *testing.T) {
 
+	path := fixturePath(t)
+
 	fSet := token.NewFileSet()
-	fParser, err := parser.ParseFile(fSet, "../ast/test/test.go", nil, parser.ParseComments)
+	fParser, err := parser.ParseFile(fSet, path, nil, parser.ParseComments)
 	if err != nil {
-		return
+		t.Fatalf("ParseFile: %v", err)
 	}
 	log.Println("fun--")
 	ast.Print(token.NewFileSet(), fParser)
@@ -85,10 +102,12 @@ func TestParse(t *testing.T) {
 	buffer := bytes.NewBuffer(output)
 	err = format.Node(buffer, fSet, fParser)
 	if err != nil {
-		log.Fatal(err)
+		t.Fatalf("format.Node: %v", err)
 	}
-	// 写回数据
-	os.WriteFile("../ast/test/test2.go", buffer.Bytes(), 0o600)
+	// 写回数据（临时目录，不碰源码树）
+	if err := os.WriteFile(filepath.Join(filepath.Dir(path), "test2.go"), buffer.Bytes(), 0o600); err != nil {
+		t.Fatalf("写回数据: %v", err)
+	}
 }
 
 func TestValue(t *testing.T) {
