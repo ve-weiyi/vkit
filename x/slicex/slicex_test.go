@@ -2,6 +2,7 @@ package slicex
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -155,8 +156,14 @@ func TestMapKeys(t *testing.T) {
 	for _, tt := range tests {
 		t.Run("MapKeys", func(t *testing.T) {
 			got := MapKeys(tt.m)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("MapKeys(%v) = %v, want %v", tt.m, got, tt.want)
+			// 契约是「按任意顺序返回」，故只比较集合，不比较顺序
+			if len(got) != len(tt.want) {
+				t.Fatalf("MapKeys(%v) 长度 = %d, want %d", tt.m, len(got), len(tt.want))
+			}
+			for _, want := range tt.want {
+				if !slices.Contains(got, want) {
+					t.Errorf("MapKeys(%v) = %v，缺少键 %v", tt.m, got, want)
+				}
 			}
 		})
 	}

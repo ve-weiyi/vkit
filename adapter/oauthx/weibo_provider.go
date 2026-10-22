@@ -1,15 +1,17 @@
 package oauthx
 
 import (
-	"encoding/json"
-	"log"
+	"context"
+	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/ve-weiyi/vkit/x/httpx"
 )
 
 type weiboProvider struct {
 	config         *OAuthConfig
+	client         *httpx.Client
 	authorizeUrl   string
 	accessTokenUrl string
 	userInfoUrl    string
@@ -18,32 +20,31 @@ type weiboProvider struct {
 func newWeiboProvider(config *OAuthConfig) *weiboProvider {
 	return &weiboProvider{
 		config:         config,
+		client:         httpx.New(),
 		authorizeUrl:   "https://api.weibo.com/oauth2/authorize",
 		accessTokenUrl: "https://api.weibo.com/oauth2/access_token",
 		userInfoUrl:    "https://api.weibo.com/2/users/show.json",
 	}
 }
 
-func (p *weiboProvider) GetName() string { return "weibo" }
+func (p *weiboProvider) GetName() string { return ProviderWeibo }
 
 func (p *weiboProvider) GetAuthLoginUrl(state string) string {
-	return httpx.NewRequest("GET", p.authorizeUrl,
-		httpx.WithParams(map[string]string{
-			"client_id":     p.config.ClientId,
-			"redirect_uri":  p.config.RedirectUri,
-			"state":         state,
-			"response_type": "code",
-		}),
-	).EncodeURL()
+	return buildAuthorizeURL(p.authorizeUrl, map[string]string{
+		"client_id":     p.config.ClientId,
+		"redirect_uri":  p.config.RedirectUri,
+		"state":         state,
+		"response_type": "code",
+	})
 }
 
-func (p *weiboProvider) GetAuthUserInfo(code string) (*UserResult, error) {
-	tk, err := p.getAccessToken(code)
+func (p *weiboProvider) GetAuthUserInfo(ctx context.Context, code string) (*UserResult, error) {
+	tk, err := p.getAccessToken(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := p.getUserInfo(tk.AccessToken, tk.Uid)
+	user, err := p.getUserInfo(ctx, tk.AccessToken, tk.Uid)
 	if err != nil {
 		return nil, err
 	}
@@ -56,37 +57,41 @@ func (p *weiboProvider) GetAuthUserInfo(code string) (*UserResult, error) {
 	}, nil
 }
 
-func (p *weiboProvider) getAccessToken(code string) (*weiboToken, error) {
-	body, err := httpx.NewRequest("POST", p.accessTokenUrl,
-		httpx.WithParams(map[string]string{
+func (p *weiboProvider) getAccessToken(ctx context.Context, code string) (*weiboToken, error) {
+	resp, err := p.client.Post(ctx, p.accessTokenUrl,
+		httpx.WithForm(map[string]string{
 			"client_id":     p.config.ClientId,
 			"client_secret": p.config.ClientSecret,
 			"redirect_uri":  p.config.RedirectUri,
 			"code":          code,
 			"grant_type":    "authorization_code",
 		}),
-	).Do()
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("weibo token:", string(body))
-	var resp weiboToken
-	return &resp, json.Unmarshal(body, &resp)
+
+	var out weiboToken
+	if err := resp.Unmarshal(&out); err != nil {
+		return nil, err
+	}
+	if out.AccessToken == "" {
+		return nil, fmt.Errorf("weibo oauth: token exchange failed: %s", strings.TrimSpace(string(resp.Body)))
+	}
+	return &out, nil
 }
 
-func (p *weiboProvider) getUserInfo(accessToken, uid string) (*weiboUserInfo, error) {
-	body, err := httpx.NewRequest("GET", p.userInfoUrl,
-		httpx.WithParams(map[string]string{
-			"uid":          uid,
-			"access_token": accessToken,
-		}),
-	).Do()
+func (p *weiboProvider) getUserInfo(ctx context.Context, accessToken, uid string) (*weiboUserInfo, error) {
+	resp, err := p.client.Get(ctx, p.userInfoUrl,
+		httpx.WithQuery("uid", uid),
+		httpx.WithQuery("access_token", accessToken),
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("weibo userinfo:", string(body))
-	var resp weiboUserInfo
-	return &resp, json.Unmarshal(body, &resp)
+
+	var out weiboUserInfo
+	return &out, resp.Unmarshal(&out)
 }
 
 type weiboToken struct {

@@ -85,10 +85,10 @@ func (self *Netease) request(method, url string, data map[string]string) ([]byte
 	return ioutil.ReadAll(gz)
 }
 
-func (self *Netease) weapi(data map[string]string) map[string]string {
+func (self *Netease) weapi(data map[string]string) (map[string]string, error) {
 	text, err := json.Marshal(data)
 	if err != nil {
-		return data
+		return nil, err
 	}
 
 	const (
@@ -98,7 +98,10 @@ func (self *Netease) weapi(data map[string]string) map[string]string {
 		charset   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	)
 
-	secret := randomBytes(16, charset)
+	secret, err := randomBytes(16, charset)
+	if err != nil {
+		return nil, err
+	}
 
 	text = base64Bytes(aesEncrypt(text, []byte(presetKey), []byte(iv)))
 	text = base64Bytes(aesEncrypt(text, secret, []byte(iv)))
@@ -107,7 +110,7 @@ func (self *Netease) weapi(data map[string]string) map[string]string {
 	return map[string]string{
 		"params":    string(text),
 		"encSecKey": string(enck),
-	}
+	}, nil
 }
 
 func (self *Netease) toSong(result gjson.Result) *Song {
@@ -138,7 +141,15 @@ func (self *Netease) Song(id string) (*Song, error) {
 		"c": string(b),
 	}
 
-	res, err := self.request("POST", "https://music.163.com/weapi/v3/song/detail/", self.weapi(data))
+	params, err := self.weapi(data)
+
+	if err != nil {
+
+		return nil, err
+
+	}
+
+	res, err := self.request("POST", "https://music.163.com/weapi/v3/song/detail/", params)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +164,15 @@ func (self *Netease) SongLink(id string) (*SongLink, error) {
 		"ids": fmt.Sprintf(`["%s"]`, id),
 	}
 
-	res, err := self.request("POST", "http://music.163.com/weapi/song/enhance/player/url", self.weapi(data))
+	params, err := self.weapi(data)
+
+	if err != nil {
+
+		return nil, err
+
+	}
+
+	res, err := self.request("POST", "http://music.163.com/weapi/song/enhance/player/url", params)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +199,15 @@ func (self *Netease) Album(id string) (*Album, error) {
 		"private_cloud": "true",
 	}
 
-	res, err := self.request("POST", fmt.Sprintf(`https://music.163.com/weapi/v1/album/%s`, id), self.weapi(data))
+	params, err := self.weapi(data)
+
+	if err != nil {
+
+		return nil, err
+
+	}
+
+	res, err := self.request("POST", fmt.Sprintf(`https://music.163.com/weapi/v1/album/%s`, id), params)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +237,15 @@ func (self *Netease) Lyric(id string) (*Lyric, error) {
 		"tv": "-1",
 	}
 
-	res, err := self.request("POST", "https://music.163.com/weapi/song/lyric", self.weapi(data))
+	params, err := self.weapi(data)
+
+	if err != nil {
+
+		return nil, err
+
+	}
+
+	res, err := self.request("POST", "https://music.163.com/weapi/song/lyric", params)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +267,15 @@ func (self *Netease) Artist(id string) (*Artist, error) {
 		"prevate_cloud": "true",
 	}
 
-	res, err := self.request("POST", fmt.Sprintf("https://music.163.com/weapi/v1/artist/%s", id), self.weapi(data))
+	params, err := self.weapi(data)
+
+	if err != nil {
+
+		return nil, err
+
+	}
+
+	res, err := self.request("POST", fmt.Sprintf("https://music.163.com/weapi/v1/artist/%s", id), params)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +304,15 @@ func (self *Netease) Playlist(id string) (*Playlist, error) {
 		"t":  "0",
 	}
 
-	res, err := self.request("POST", "https://music.163.com/weapi/v6/playlist/detail", self.weapi(data))
+	params, err := self.weapi(data)
+
+	if err != nil {
+
+		return nil, err
+
+	}
+
+	res, err := self.request("POST", "https://music.163.com/weapi/v6/playlist/detail", params)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +342,15 @@ func (self *Netease) Search(keyword string) ([]*Song, error) {
 		"offset": "0",
 	}
 
-	res, err := self.request("POST", "https://music.163.com/weapi/cloudsearch/pc", self.weapi(data))
+	params, err := self.weapi(data)
+
+	if err != nil {
+
+		return nil, err
+
+	}
+
+	res, err := self.request("POST", "https://music.163.com/weapi/cloudsearch/pc", params)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package dstx
 
 import (
 	"bytes"
+	"fmt"
 	"go/parser"
 	"go/token"
 	"log"
@@ -124,7 +125,7 @@ func (vi *AstInjectMeta) Execute() error {
 	buffer := bytes.NewBuffer(output)
 	err = decorator.Fprint(buffer, fParser)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("dstx: print node: %w", err)
 	}
 
 	//log.Println(buffer)
@@ -166,7 +167,7 @@ func (vi *AstInjectMeta) RollBack() error {
 	buffer := bytes.NewBuffer(output)
 	err = decorator.Fprint(buffer, fParser)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("dstx: print node: %w", err)
 	}
 
 	//log.Println(buffer)

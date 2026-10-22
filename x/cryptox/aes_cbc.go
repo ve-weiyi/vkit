@@ -17,17 +17,15 @@ func NewCBC() AES {
 
 // AESEncrypt AES-CBC 加密(二进制版)
 func (c *CBC) AESEncrypt(plaintext []byte, key []byte, iv ...byte) (ciphertext []byte, err error) {
-	//加密向量,取密钥前16位
-	if len(iv) == 0 {
-		iv = key[:aes.BlockSize]
-	}
-	if len(iv) != aes.BlockSize {
-		return nil, fmt.Errorf("invalid iv '%s' as it's not multiple of ase.blockSize", iv)
-	}
-
-	// 验证密钥长度
+	// 验证密钥长度（必须先于 IV 处理：旧实现直接切 key 前 16 字节作 IV，
+	// 密钥短于 16 字节时会先 panic）
 	if len(key) != 16 && len(key) != 24 && len(key) != 32 {
 		return nil, errors.New("invalid key size: must be 16, 24 or 32 bytes")
+	}
+
+	// CBC 必须显式传入随机 IV：用密钥前缀充当 IV 会让相同明文产生相同密文
+	if len(iv) != aes.BlockSize {
+		return nil, fmt.Errorf("invalid iv: must be exactly %d bytes, got %d", aes.BlockSize, len(iv))
 	}
 
 	// 创建加密块
@@ -51,17 +49,14 @@ func (c *CBC) AESEncrypt(plaintext []byte, key []byte, iv ...byte) (ciphertext [
 
 // AESDecrypt AES-CBC 解密(二进制版)
 func (c *CBC) AESDecrypt(ciphertext []byte, key []byte, iv ...byte) (plaintext []byte, err error) {
-	//加密向量,取密钥前16位
-	if len(iv) == 0 {
-		iv = key[:aes.BlockSize]
-	}
-	if len(iv) != aes.BlockSize {
-		return nil, fmt.Errorf("invalid iv '%s' as it's not multiple of ase.blockSize", iv)
-	}
-
-	// 验证密钥长度
+	// 验证密钥长度（必须先于 IV 处理，理由同 AESEncrypt）
 	if len(key) != 16 && len(key) != 24 && len(key) != 32 {
 		return nil, errors.New("invalid key size: must be 16, 24 or 32 bytes")
+	}
+
+	// CBC 必须显式传入随机 IV
+	if len(iv) != aes.BlockSize {
+		return nil, fmt.Errorf("invalid iv: must be exactly %d bytes, got %d", aes.BlockSize, len(iv))
 	}
 
 	// 检查最小长度

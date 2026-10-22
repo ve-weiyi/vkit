@@ -31,7 +31,7 @@ func (p *MockSmsProvider) SendTemplate(ctx context.Context, phone, templateCode 
 
 // GetProviderName 获取服务商名称
 func (p *MockSmsProvider) GetProviderName() string {
-	return "mock"
+	return ProviderMock
 }
 
 // GetTemplateCode 根据场景获取模板代码

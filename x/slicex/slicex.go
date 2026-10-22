@@ -2,22 +2,21 @@ package slicex
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Join ["a", "b", "c"], "," => "a,b,c"
 func Join[S ~[]E, E any](s S, sep string) string {
-	var out string
+	var out strings.Builder
 
-	for _, e := range s {
-		if out == "" {
-			out = out + fmt.Sprintf("%v", e)
-		} else {
-			out = out + sep
-			out = out + fmt.Sprintf("%v", e)
+	for i, e := range s {
+		if i > 0 {
+			out.WriteString(sep)
 		}
+		fmt.Fprint(&out, e)
 	}
 
-	return out
+	return out.String()
 }
 
 // Reverse reverses a slice.
@@ -68,7 +67,6 @@ func RemoveDuplicates[S ~[]E, E comparable](s S) (ret S) {
 	return ret
 }
 
-// FindDuplicates 查找数组中的所有重复元素
 // FindDuplicates 查找切片中的所有重复元素
 func FindDuplicates[S ~[]E, E comparable](s S) (ret []E) {
 	counts := make(map[E]int) // 记录元素出现次数

@@ -3,11 +3,11 @@ package smsx
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	sms "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms/v20210111"
-	"github.com/zeromicro/go-zero/core/logx"
 )
 
 // TencentSmsProvider 腾讯云短信服务提供商
@@ -17,7 +17,7 @@ type TencentSmsProvider struct {
 }
 
 // NewTencentSmsProvider 创建腾讯云短信服务提供商实例
-func NewTencentSmsProvider(config *SmsConfig) *TencentSmsProvider {
+func NewTencentSmsProvider(config *SmsConfig) (*TencentSmsProvider, error) {
 	// 创建认证对象
 	credential := common.NewCredential(
 		config.AccessKey, // SecretId
@@ -37,14 +37,13 @@ func NewTencentSmsProvider(config *SmsConfig) *TencentSmsProvider {
 	// 创建短信客户端
 	client, err := sms.NewClient(credential, region, cpf)
 	if err != nil {
-		logx.Errorf("Failed to create Tencent SMS client: %v", err)
-		return nil
+		return nil, fmt.Errorf("smsx: failed to create tencent sms client: %w", err)
 	}
 
 	return &TencentSmsProvider{
 		config: config,
 		client: client,
-	}
+	}, nil
 }
 
 // SendCode 发送验证码短信
@@ -79,6 +78,9 @@ func (p *TencentSmsProvider) SendTemplate(ctx context.Context, phone, templateId
 	request.TemplateId = common.StringPtr(templateId)
 
 	// 设置手机号（需要添加国际区号，如 +86）
+	if phone == "" {
+		return fmt.Errorf("smsx: phone is empty")
+	}
 	phoneNumber := phone
 	if phone[0] != '+' {
 		phoneNumber = "+86" + phone
@@ -93,11 +95,16 @@ func (p *TencentSmsProvider) SendTemplate(ctx context.Context, phone, templateId
 		if code, ok := params["code"]; ok {
 			templateParams = append(templateParams, code)
 		}
-		// 添加其他参数（按字母顺序）
-		for key, value := range params {
+		// 添加其他参数：map 遍历顺序随机，必须排序，否则模板参数会错位导致短信内容错误
+		keys := make([]string, 0, len(params))
+		for key := range params {
 			if key != "code" {
-				templateParams = append(templateParams, value)
+				keys = append(keys, key)
 			}
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			templateParams = append(templateParams, params[key])
 		}
 		request.TemplateParamSet = common.StringPtrs(templateParams)
 	}
@@ -105,7 +112,6 @@ func (p *TencentSmsProvider) SendTemplate(ctx context.Context, phone, templateId
 	// 发送短信
 	response, err := p.client.SendSms(request)
 	if err != nil {
-		logx.Errorf("Failed to send SMS via Tencent: %v", err)
 		return fmt.Errorf("failed to send SMS: %w", err)
 	}
 
@@ -121,16 +127,8 @@ func (p *TencentSmsProvider) SendTemplate(ctx context.Context, phone, templateId
 			if status.Message != nil {
 				errMsg = *status.Message
 			}
-			logx.Errorf("Tencent SMS send failed: Code=%s, Message=%s", errCode, errMsg)
 			return fmt.Errorf("SMS send failed: %s - %s", errCode, errMsg)
 		}
-
-		// 记录成功日志
-		serialNo := "Unknown"
-		if status.SerialNo != nil {
-			serialNo = *status.SerialNo
-		}
-		logx.Infof("Tencent SMS sent successfully: Phone=%s, SerialNo=%s", phone, serialNo)
 	}
 
 	return nil
@@ -138,7 +136,7 @@ func (p *TencentSmsProvider) SendTemplate(ctx context.Context, phone, templateId
 
 // GetProviderName 获取服务商名称
 func (p *TencentSmsProvider) GetProviderName() string {
-	return "tencent"
+	return ProviderTencent
 }
 
 // GetTemplateCode 根据场景获取模板代码
@@ -154,15 +152,7 @@ func (p *TencentSmsProvider) getTemplateId(codeType string) string {
 		}
 	}
 
-	// 默认模板 ID（如果配置中没有指定）
-	// 注意：腾讯云的模板 ID 是数字字符串，需要在实际使用时配置
-	defaultTemplates := map[string]string{
-		"login":          "1000001",
-		"register":       "1000002",
-		"reset_password": "1000003",
-		"bind_email":     "1000004",
-		"bind_phone":     "1000005",
-	}
-
-	return defaultTemplates[codeType]
+	// 不再内置兜底模板 ID：占位 ID 会在未配置时把短信真的发出去（且内容错误），
+	// 必须返回空串交由调用方报错，逼迫配置到位
+	return ""
 }

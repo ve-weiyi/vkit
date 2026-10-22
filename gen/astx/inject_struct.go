@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ve-weiyi/vkit/x/jsonconv"
+	"github.com/ve-weiyi/vkit/x/debugx"
 )
 
 // 插入 FieldName  FieldType.SelName
@@ -176,5 +176,5 @@ type %s struct {
 	})
 
 	log.Println("GetCode", meta.ToInjectCode())
-	log.Println("NewStructMete", jsonconv.AnyToJsonIndent(meta))
+	log.Println("NewStructMete", debugx.Dump(meta))
 }

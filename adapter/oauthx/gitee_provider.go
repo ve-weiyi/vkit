@@ -1,10 +1,10 @@
 package oauthx
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ve-weiyi/vkit/x/httpx"
@@ -12,6 +12,7 @@ import (
 
 type giteeProvider struct {
 	config         *OAuthConfig
+	client         *httpx.Client
 	authorizeUrl   string
 	accessTokenUrl string
 	userInfoUrl    string
@@ -20,32 +21,31 @@ type giteeProvider struct {
 func newGiteeProvider(config *OAuthConfig) *giteeProvider {
 	return &giteeProvider{
 		config:         config,
+		client:         httpx.New(),
 		authorizeUrl:   "https://gitee.com/oauth/authorize",
 		accessTokenUrl: "https://gitee.com/oauth/token",
 		userInfoUrl:    "https://gitee.com/api/v5/user",
 	}
 }
 
-func (p *giteeProvider) GetName() string { return "gitee" }
+func (p *giteeProvider) GetName() string { return ProviderGitee }
 
 func (p *giteeProvider) GetAuthLoginUrl(state string) string {
-	return httpx.NewRequest("GET", p.authorizeUrl,
-		httpx.WithParams(map[string]string{
-			"client_id":     p.config.ClientId,
-			"redirect_uri":  p.config.RedirectUri,
-			"state":         state,
-			"response_type": "code",
-		}),
-	).EncodeURL()
+	return buildAuthorizeURL(p.authorizeUrl, map[string]string{
+		"client_id":     p.config.ClientId,
+		"redirect_uri":  p.config.RedirectUri,
+		"state":         state,
+		"response_type": "code",
+	})
 }
 
-func (p *giteeProvider) GetAuthUserInfo(code string) (*UserResult, error) {
-	token, err := p.getAccessToken(code)
+func (p *giteeProvider) GetAuthUserInfo(ctx context.Context, code string) (*UserResult, error) {
+	token, err := p.getAccessToken(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := p.getUserInfo(token.AccessToken)
+	user, err := p.getUserInfo(ctx, token.AccessToken)
 	if err != nil {
 		return nil, err
 	}
@@ -63,42 +63,42 @@ func (p *giteeProvider) GetAuthUserInfo(code string) (*UserResult, error) {
 	return resp, nil
 }
 
-func (p *giteeProvider) getAccessToken(code string) (*giteeToken, error) {
-	body, err := httpx.NewRequest("POST", p.accessTokenUrl,
-		httpx.WithHeaders(map[string]string{
-			"Authorization": fmt.Sprintf("Bearer %s", code),
-			"Content-Type":  "application/json; charset=utf-8",
-			"Accept":        "application/json",
-		}),
-		httpx.WithParams(map[string]string{
+func (p *giteeProvider) getAccessToken(ctx context.Context, code string) (*giteeToken, error) {
+	resp, err := p.client.Post(ctx, p.accessTokenUrl,
+		httpx.WithHeader("Accept", "application/json"),
+		httpx.WithForm(map[string]string{
 			"client_id":     p.config.ClientId,
 			"client_secret": p.config.ClientSecret,
 			"code":          code,
 			"redirect_uri":  p.config.RedirectUri,
 			"grant_type":    "authorization_code",
 		}),
-	).Do()
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("gitee token:", string(body))
-	var resp giteeToken
-	return &resp, json.Unmarshal(body, &resp)
+
+	var out giteeToken
+	if err := resp.Unmarshal(&out); err != nil {
+		return nil, err
+	}
+	if out.AccessToken == "" {
+		return nil, fmt.Errorf("gitee oauth: token exchange failed: %s", strings.TrimSpace(string(resp.Body)))
+	}
+	return &out, nil
 }
 
-func (p *giteeProvider) getUserInfo(accessToken string) (*giteeUserInfo, error) {
-	body, err := httpx.NewRequest("GET", p.userInfoUrl,
-		httpx.WithHeaders(map[string]string{
-			"Authorization": fmt.Sprintf("Bearer %s", accessToken),
-			"Content-Type":  "application/json; charset=utf-8",
-		}),
-	).Do()
+func (p *giteeProvider) getUserInfo(ctx context.Context, accessToken string) (*giteeUserInfo, error) {
+	resp, err := p.client.Get(ctx, p.userInfoUrl,
+		httpx.WithHeader("Authorization", fmt.Sprintf("Bearer %s", accessToken)),
+		httpx.WithHeader("Content-Type", "application/json; charset=utf-8"),
+	)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("gitee userinfo:", string(body))
-	var resp giteeUserInfo
-	return &resp, json.Unmarshal(body, &resp)
+
+	var out giteeUserInfo
+	return &out, resp.Unmarshal(&out)
 }
 
 type giteeToken struct {

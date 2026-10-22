@@ -6,28 +6,65 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
 
-var testQiniuConfig = &StorageConfig{
-	Provider:  "qiniu",
-	Endpoint:  "s3.cn-south-1.qiniucs.com",
-	Bucket:    "veweiyi",
-	AccessKey: "<qiniu-access-key>",
-	SecretKey: "<qiniu-secret-key>",
+var testQiniuCfg = &KodoConfig{
+	Endpoint:  "https://up-z2.qiniup.com",
+	Bucket:    "test-bucket",
+	AccessKey: "test-access-key",
+	SecretKey: "test-secret-key",
 	Region:    "huanan",
-	CDNDomain: "static.veweiyi.cn",
-	BasePath:  "blog",
-	IsPrivate: false,
+	CDNDomain: "cdn.example.com",
 }
 
-func TestQiniuKodoProvider_GetUploadToken(t *testing.T) {
-	provider := NewQiniuKodoProvider(testQiniuConfig)
-	token, err := provider.GetUploadToken(context.Background(), "test-image.jpg", 3600)
+// qiniuConfigFromEnv 读取真实上传测试所需配置；缺凭证时跳过，避免误用占位值访问真实 bucket。
+func qiniuConfigFromEnv(t *testing.T) *KodoConfig {
+	t.Helper()
+
+	accessKey := os.Getenv("QINIU_ACCESS_KEY")
+	secretKey := os.Getenv("QINIU_SECRET_KEY")
+	bucket := os.Getenv("QINIU_BUCKET")
+	if accessKey == "" || secretKey == "" || bucket == "" {
+		t.Skip("跳过：未设置 QINIU_ACCESS_KEY / QINIU_SECRET_KEY / QINIU_BUCKET")
+	}
+
+	cfg := &KodoConfig{
+		Endpoint:  "https://up-z2.qiniup.com",
+		Bucket:    bucket,
+		AccessKey: accessKey,
+		SecretKey: secretKey,
+		Region:    "huanan",
+		CDNDomain: os.Getenv("QINIU_CDN_DOMAIN"),
+	}
+	if v := os.Getenv("QINIU_ENDPOINT"); v != "" {
+		cfg.Endpoint = v
+	}
+	if v := os.Getenv("QINIU_REGION"); v != "" {
+		cfg.Region = v
+	}
+
+	return cfg
+}
+
+// newQiniuProvider 构造七牛 provider（构造失败即结束用例）。
+func newQiniuProvider(tb testing.TB, cfg *KodoConfig) *QiniuKodoProvider {
+	tb.Helper()
+	p, err := NewQiniuKodoProvider(cfg)
 	if err != nil {
-		t.Fatalf("GetUploadToken failed: %v", err)
+		tb.Fatalf("NewQiniuKodoProvider: %v", err)
+	}
+	return p
+}
+
+func TestQiniuKodoProvider_UploadToken(t *testing.T) {
+	provider := newQiniuProvider(t, testQiniuCfg)
+	token, err := provider.UploadToken(context.Background(), "test-image.jpg", 3600*time.Second)
+	if err != nil {
+		t.Fatalf("UploadToken failed: %v", err)
 	}
 
 	if token.UploadURL == "" {
@@ -42,10 +79,7 @@ func TestQiniuKodoProvider_GetUploadToken(t *testing.T) {
 	if token.AccessURL == "" {
 		t.Error("AccessURL should not be empty")
 	}
-	if !strings.HasPrefix(token.FileKey, testQiniuConfig.BasePath) {
-		t.Errorf("FileKey should start with BasePath, got: %s", token.FileKey)
-	}
-	if !strings.Contains(token.AccessURL, testQiniuConfig.CDNDomain) {
+	if !strings.Contains(token.AccessURL, testQiniuCfg.CDNDomain) {
 		t.Errorf("AccessURL should contain CDN domain, got: %s", token.AccessURL)
 	}
 
@@ -69,7 +103,7 @@ func TestQiniuKodoProvider_Region(t *testing.T) {
 
 	for _, tc := range regions {
 		t.Run(tc.region, func(t *testing.T) {
-			provider := NewQiniuKodoProvider(&StorageConfig{
+			provider := newQiniuProvider(t, &KodoConfig{
 				Bucket: "test-bucket", AccessKey: "ak", SecretKey: "sk", Region: tc.region,
 			})
 			zone := provider.getRegion()
@@ -81,23 +115,22 @@ func TestQiniuKodoProvider_Region(t *testing.T) {
 }
 
 func TestQiniuKodoProvider_TokenFormat(t *testing.T) {
-	provider := NewQiniuKodoProvider(testQiniuConfig)
-	token, err := provider.GetUploadToken(context.Background(), "test.jpg", 3600)
+	provider := newQiniuProvider(t, testQiniuCfg)
+	token, err := provider.UploadToken(context.Background(), "test.jpg", 3600*time.Second)
 	if err != nil {
-		t.Fatalf("GetUploadToken failed: %v", err)
+		t.Fatalf("UploadToken failed: %v", err)
 	}
 
 	parts := strings.Split(token.Token, ":")
 	if len(parts) != 3 {
 		t.Fatalf("Token should have 3 parts separated by ':', got %d", len(parts))
 	}
-	if parts[0] != testQiniuConfig.AccessKey {
-		t.Errorf("AccessKey mismatch: expected %s, got %s", testQiniuConfig.AccessKey, parts[0])
+	if parts[0] != testQiniuCfg.AccessKey {
+		t.Errorf("AccessKey mismatch: expected %s, got %s", testQiniuCfg.AccessKey, parts[0])
 	}
 }
 
 func TestQiniuKodoProvider_FileKeyGeneration(t *testing.T) {
-	provider := NewQiniuKodoProvider(&StorageConfig{BasePath: "blog"})
 	datePath := time.Now().Format("20060102")
 
 	cases := []struct{ filename, ext string }{
@@ -108,8 +141,8 @@ func TestQiniuKodoProvider_FileKeyGeneration(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.filename, func(t *testing.T) {
-			key := provider.generateFileKey(tc.filename)
-			if !strings.HasPrefix(key, "blog") {
+			key := GenerateFileKey(tc.filename)
+			if !strings.HasPrefix(key, datePath) {
 				t.Errorf("FileKey should start with BasePath, got: %s", key)
 			}
 			if !strings.Contains(key, datePath) {
@@ -135,24 +168,24 @@ func TestQiniuKodoProvider_BuildAccessURL(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			provider := NewQiniuKodoProvider(&StorageConfig{Bucket: "veweiyi", CDNDomain: tc.cdnDomain})
-			if got := provider.buildAccessURL(tc.fileKey); got != tc.expected {
+			provider := newQiniuProvider(t, &KodoConfig{Bucket: "veweiyi", CDNDomain: tc.cdnDomain})
+			if got := provider.AccessURL(tc.fileKey); got != tc.expected {
 				t.Errorf("expected %s, got %s", tc.expected, got)
 			}
 		})
 	}
 }
 
-// TestQiniuKodoProvider_RealUpload 测试前端直传，使用 -short 跳过
+// TestQiniuKodoProvider_RealUpload 测试前端直传，使用 -short 或未提供凭证时跳过
 func TestQiniuKodoProvider_RealUpload(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping real upload test in short mode")
 	}
 
-	provider := NewQiniuKodoProvider(testQiniuConfig)
-	token, err := provider.GetUploadToken(context.Background(), "test-upload.txt", 3600)
+	provider := newQiniuProvider(t, qiniuConfigFromEnv(t))
+	token, err := provider.UploadToken(context.Background(), "test-upload.txt", 3600*time.Second)
 	if err != nil {
-		t.Fatalf("GetUploadToken failed: %v", err)
+		t.Fatalf("UploadToken failed: %v", err)
 	}
 
 	body := &bytes.Buffer{}
@@ -181,21 +214,21 @@ func TestQiniuKodoProvider_RealUpload(t *testing.T) {
 	}
 }
 
-// TestQiniuKodoProvider_ServerSideUpload 测试服务端上传，使用 -short 跳过
+// TestQiniuKodoProvider_ServerSideUpload 测试服务端上传，使用 -short 或未提供凭证时跳过
 func TestQiniuKodoProvider_ServerSideUpload(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping server-side upload test in short mode")
 	}
 
-	provider := NewQiniuKodoProvider(testQiniuConfig)
+	provider := newQiniuProvider(t, qiniuConfigFromEnv(t))
 	fileContent := []byte("server-side upload test content")
 
-	accessURL, err := provider.Upload(context.Background(), bytes.NewReader(fileContent), "server-test.txt")
+	result, err := provider.Upload(context.Background(), bytes.NewReader(fileContent), "server-test.txt")
 	if err != nil {
 		t.Fatalf("Upload failed: %v", err)
 	}
 
-	resp, err := http.Get(accessURL)
+	resp, err := http.Get(result.AccessURL)
 	if err != nil {
 		t.Logf("warning: failed to access uploaded file: %v", err)
 		return
@@ -206,17 +239,6 @@ func TestQiniuKodoProvider_ServerSideUpload(t *testing.T) {
 		content, _ := io.ReadAll(resp.Body)
 		if !bytes.Equal(content, fileContent) {
 			t.Errorf("content mismatch: expected %q, got %q", fileContent, content)
-		}
-	}
-}
-
-func BenchmarkGetUploadToken(b *testing.B) {
-	provider := NewQiniuKodoProvider(testQiniuConfig)
-	ctx := context.Background()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if _, err := provider.GetUploadToken(ctx, "test.jpg", 3600); err != nil {
-			b.Fatalf("GetUploadToken failed: %v", err)
 		}
 	}
 }

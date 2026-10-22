@@ -32,13 +32,13 @@ func (s Scraper) Scrap(endpoint string) (doc *goquery.Document, err error) {
 		return
 	}
 
+	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		msg := fmt.Sprintf("%s %s: returned HTTP status %d", http.MethodGet, endpoint, res.StatusCode)
 		err = errors.New(msg)
 		return
 	}
-
-	defer res.Body.Close()
 
 	root, err := html.Parse(res.Body)
 

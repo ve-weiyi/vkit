@@ -17,19 +17,19 @@ type AlipayProvider struct {
 }
 
 // NewAlipayProvider 创建支付宝支付服务提供商
-func NewAlipayProvider(config *PaymentConfig) *AlipayProvider {
+func NewAlipayProvider(config *PaymentConfig) (*AlipayProvider, error) {
 	client, err := alipay.NewClient(config.AppId, config.PrivateKey, config.IsProd)
 	if err != nil {
-		panic(fmt.Sprintf("初始化支付宝客户端失败: %v", err))
+		return nil, fmt.Errorf("payx: failed to init alipay client: %w", err)
 	}
 	return &AlipayProvider{
 		config: config,
 		client: client,
-	}
+	}, nil
 }
 
 func (p *AlipayProvider) GetProviderName() string {
-	return "alipay"
+	return ProviderAlipay
 }
 
 // CreateOrder 创建支付宝PC支付订单
@@ -88,11 +88,17 @@ func (p *AlipayProvider) QueryOrder(ctx context.Context, orderNo string) (*Order
 	}
 
 	if rsp.Response.TotalAmount != "" {
-		amount, _ := strconv.ParseFloat(rsp.Response.TotalAmount, 64)
+		amount, err := strconv.ParseFloat(rsp.Response.TotalAmount, 64)
+		if err != nil {
+			return nil, fmt.Errorf("payx: invalid TotalAmount %q: %w", rsp.Response.TotalAmount, err)
+		}
 		result.Amount = amount
 	}
 	if rsp.Response.BuyerPayAmount != "" {
-		paidAmount, _ := strconv.ParseFloat(rsp.Response.BuyerPayAmount, 64)
+		paidAmount, err := strconv.ParseFloat(rsp.Response.BuyerPayAmount, 64)
+		if err != nil {
+			return nil, fmt.Errorf("payx: invalid BuyerPayAmount %q: %w", rsp.Response.BuyerPayAmount, err)
+		}
 		result.PaidAmount = paidAmount
 	}
 	if rsp.Response.SendPayDate != "" {
@@ -145,7 +151,10 @@ func (p *AlipayProvider) Refund(ctx context.Context, req *RefundRequest) (*Refun
 	}
 
 	if rsp.Response.RefundFee != "" {
-		refundAmount, _ := strconv.ParseFloat(rsp.Response.RefundFee, 64)
+		refundAmount, err := strconv.ParseFloat(rsp.Response.RefundFee, 64)
+		if err != nil {
+			return nil, fmt.Errorf("payx: invalid RefundFee %q: %w", rsp.Response.RefundFee, err)
+		}
 		result.RefundAmount = refundAmount
 	}
 
@@ -181,7 +190,10 @@ func (p *AlipayProvider) VerifyNotifyData(formData map[string]string, bodyData [
 	}
 
 	if totalAmount != "" {
-		amount, _ := strconv.ParseFloat(totalAmount, 64)
+		amount, err := strconv.ParseFloat(totalAmount, 64)
+		if err != nil {
+			return nil, fmt.Errorf("payx: invalid total_amount %q: %w", totalAmount, err)
+		}
 		result.Amount = amount
 		result.PaidAmount = amount
 	}

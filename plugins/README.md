@@ -17,6 +17,7 @@
 提供网易云音乐数据查询服务。
 
 **功能：**
+
 - 搜索歌曲
 - 获取歌曲详情
 - 获取歌曲播放链接
@@ -26,6 +27,7 @@
 - 获取歌单信息
 
 **API 端点：**
+
 ```
 GET /music/search?keyword=xxx      # 搜索歌曲
 GET /music/song?id=xxx             # 获取歌曲详情
@@ -41,11 +43,13 @@ GET /music/playlist?id=xxx         # 获取歌单信息
 爬取 GSMArena 网站数据，提供手机品牌和型号信息查询服务。
 
 **功能：**
+
 - 获取所有手机品牌列表
 - 根据品牌获取设备列表（支持分页）
 - 获取设备详细规格信息
 
 **API 端点：**
+
 ```
 GET /gsm/brands                           # 获取所有品牌
 GET /gsm/devices?slug=xxx&page=1          # 获取设备列表
@@ -57,11 +61,13 @@ GET /gsm/specification?slug=xxx           # 获取设备规格
 提供 OpenAI 兼容的对话接口代理服务。
 
 **功能：**
+
 - OpenAI Chat Completions API 代理
 - 支持流式响应
 - 自定义 API 配置
 
 **API 端点：**
+
 ```
 POST /ai/chat/completions              # 对话接口
 ```
@@ -71,11 +77,13 @@ POST /ai/chat/completions              # 对话接口
 提供 Knife4j 风格的 Swagger API 文档界面。
 
 **功能：**
+
 - 美观的 API 文档界面
 - 支持 Swagger 2.0 规范
 - 在线 API 测试
 
 **访问地址：**
+
 ```
 GET /doc.html                          # 文档首页
 ```
@@ -85,6 +93,7 @@ GET /doc.html                          # 文档首页
 提供标准的 Swagger UI 文档界面。
 
 **功能：**
+
 - 标准 Swagger UI
 - 支持 OpenAPI 规范
 - API 在线调试
@@ -337,6 +346,7 @@ plugin/
 ## 更新日志
 
 ### v1.0.0 (2024)
+
 - ✨ 初始版本发布
 - ✨ 实现 Music Plugin
 - ✨ 实现 GSM Plugin

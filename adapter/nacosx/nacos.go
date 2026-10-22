@@ -22,8 +22,22 @@ type NacosConfig struct {
 	NacosRuntimeDir string // Nacos运行时目录
 }
 
-// 初始化Nacos配置并监听变化
-func LoadConfigFromNacos(option *NacosConfig, callback func(content string)) error {
+// Listener 用于停止配置监听并释放 Nacos 客户端。
+type Listener interface {
+	Close() error
+}
+
+type nacosListener struct{ closeFn func() }
+
+// Close 停止监听并释放客户端。SDK 的 CloseClient 没有返回值，这里统一成 error 以便实现 Listener。
+func (l *nacosListener) Close() error {
+	l.closeFn()
+	return nil
+}
+
+// LoadConfigFromNacos 加载 Nacos 配置并监听变更，首次加载即回调一次。
+// 返回的 Listener 必须被持有并最终 Close：否则监听 goroutine 与 Nacos 客户端会一直存活。
+func LoadConfigFromNacos(option *NacosConfig, callback func(content string)) (Listener, error) {
 	// 1. 创建Nacos客户端配置
 	serverConfigs := []constant.ServerConfig{
 		{
@@ -51,7 +65,7 @@ func LoadConfigFromNacos(option *NacosConfig, callback func(content string)) err
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create Nacos client: %w", err)
+		return nil, fmt.Errorf("failed to create Nacos client: %w", err)
 	}
 
 	// 3. 首次从Nacos获取配置
@@ -60,7 +74,7 @@ func LoadConfigFromNacos(option *NacosConfig, callback func(content string)) err
 		Group:  option.NacosGroup,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get Nacos config: %w", err)
+		return nil, fmt.Errorf("failed to get Nacos config: %w", err)
 	}
 
 	// 4. 解析Nacos配置（修复：传指针给Unmarshal）
@@ -73,12 +87,12 @@ func LoadConfigFromNacos(option *NacosConfig, callback func(content string)) err
 		OnChange: func(namespace, group, dataId, data string) {
 			//logger.GetLogger().Info("Nacos config changed: dataId=%s, group=%s\n", dataId, group)
 			// 重新解析变更后的配置到原指针
-			callback(content)
+			callback(data)
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to listen Nacos config changes: %w", err)
+		return nil, fmt.Errorf("failed to listen Nacos config changes: %w", err)
 	}
 
-	return nil // 返回指针，外部持有后会同步更新
+	return &nacosListener{closeFn: client.CloseClient}, nil
 }

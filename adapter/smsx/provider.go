@@ -2,6 +2,7 @@ package smsx
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -50,17 +51,24 @@ type SmsConfig struct {
 	Templates map[string]string // 模板配置：codeType -> templateCode/templateId
 }
 
-// NewSmsProvider 创建短信服务提供商实例（工厂模式）
-func NewSmsProvider(config *SmsConfig) SmsProvider {
+// NewSmsProvider 创建短信服务提供商实例（工厂模式）。
+// 未识别的 provider 返回错误，避免静默回落到 Mock 造成「假发送成功」。
+// provider 名常量：避免字面量在多处拼错导致走错分支
+const (
+	ProviderAliyun  = "aliyun"
+	ProviderTencent = "tencent"
+	ProviderMock    = "mock"
+)
+
+func NewSmsProvider(config *SmsConfig) (SmsProvider, error) {
 	switch config.Provider {
-	case "aliyun":
-		return NewAliyunSmsProvider(config)
-	case "tencent":
+	case ProviderAliyun:
+		return NewAliyunSmsProvider(config), nil
+	case ProviderTencent:
 		return NewTencentSmsProvider(config)
-	case "mock":
-		return NewMockSmsProvider(config)
+	case ProviderMock:
+		return NewMockSmsProvider(config), nil
 	default:
-		// 默认使用 Mock 提供商（开发环境）
-		return NewMockSmsProvider(config)
+		return nil, fmt.Errorf("smsx: unsupported provider %q (want aliyun | tencent | mock)", config.Provider)
 	}
 }

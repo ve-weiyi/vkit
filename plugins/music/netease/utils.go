@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	crand "crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -15,7 +16,6 @@ import (
 	"math/rand"
 	"net/url"
 	"strings"
-	"time"
 )
 
 func fromData(data map[string]string) io.Reader {
@@ -45,13 +45,26 @@ func randomIP() string {
 	return long2ip(randRange(1884815360, 1884890111))
 }
 
-func randomBytes(length int, charset string) []byte {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+// randomBytes 从 charset 中取 length 个随机字符，用于生成 weapi 的会话密钥。
+//
+// 必须用 crypto/rand：这个密钥是客户端自选的 AES key，用它加密请求体，
+// 用 math/rand（时间做种子）生成等于把密钥交给任何能观察到请求的一方。
+func randomBytes(length int, charset string) ([]byte, error) {
+	if len(charset) == 0 {
+		return nil, fmt.Errorf("charset cannot be empty")
+	}
+
+	max := big.NewInt(int64(len(charset)))
 	b := make([]byte, length)
 	for i := range b {
-		b[i] = charset[r.Intn(len(charset))]
+		idx, err := crand.Int(crand.Reader, max)
+		if err != nil {
+			return nil, fmt.Errorf("generate random bytes: %w", err)
+		}
+		b[i] = charset[idx.Int64()]
 	}
-	return b
+
+	return b, nil
 }
 
 func reverseBytes(src []byte) []byte {

@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 )
 
-// Md5v md5 加盐加密
+// Sha256v sha256 加盐哈希
 func Sha256v(str string, salt string) string {
 	h := sha256.New()
 	h.Write([]byte(str + salt))
