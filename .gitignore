@@ -32,3 +32,6 @@ default.etcd
 config.yaml
 test.*
 any_test.go
+
+# 本地构建产物
+/mqdlq

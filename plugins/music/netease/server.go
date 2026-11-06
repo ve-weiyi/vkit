@@ -1,16 +1,19 @@
 package netease
 
-import "strings"
+import (
+	"context"
+	"strings"
+)
 
 type (
 	Server interface {
-		Search(string) ([]*Song, error)
-		Song(string) (*Song, error)
-		SongLink(string) (*SongLink, error)
-		Lyric(string) (*Lyric, error)
-		Album(string) (*Album, error)
-		Artist(string) (*Artist, error)
-		Playlist(string) (*Playlist, error)
+		Search(context.Context, string) ([]*Song, error)
+		Song(context.Context, string) (*Song, error)
+		SongLink(context.Context, string) (*SongLink, error)
+		Lyric(context.Context, string) (*Lyric, error)
+		Album(context.Context, string) (*Album, error)
+		Artist(context.Context, string) (*Artist, error)
+		Playlist(context.Context, string) (*Playlist, error)
 	}
 )
 

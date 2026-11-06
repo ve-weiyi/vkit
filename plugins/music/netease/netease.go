@@ -1,18 +1,19 @@
 package netease
 
 import (
-	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/tidwall/gjson"
 )
+
+const maxResponseBytes = 8 << 20
 
 type Netease struct {
 	client *http.Client
@@ -31,14 +32,14 @@ func newClient() *http.Client {
 	}
 }
 
-func (self *Netease) request(method, url string, data map[string]string) ([]byte, error) {
+func (self *Netease) request(ctx context.Context, method, url string, data map[string]string) ([]byte, error) {
 	var body io.Reader
 
 	if method != "GET" && data != nil {
 		body = fromData(data)
 	}
 
-	req, err := http.NewRequest(method, url, body)
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,6 @@ func (self *Netease) request(method, url string, data map[string]string) ([]byte
 		"User-Agent":      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5, AppleWebKit/605.1.15 (KHTML, like Gecko,",
 		"X-Real-IP":       randomIP(),
 		"Accept":          "*/*",
-		"Accept-Encoding": "gzip,deflate,sdch",
 		"Accept-Language": "zh-CN,zh;q=0.8,gl;q=0.6,zh-TW;q=0.4",
 		"Connection":      "keep-alive",
 		"Content-Type":    "application/x-www-form-urlencoded",
@@ -72,17 +72,18 @@ func (self *Netease) request(method, url string, data map[string]string) ([]byte
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return nil, errors.New("result is null")
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("netease: upstream status %d", resp.StatusCode)
 	}
 
-	gz, err := gzip.NewReader(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, err
 	}
-	defer gz.Close()
-
-	return ioutil.ReadAll(gz)
+	if len(respBody) > maxResponseBytes {
+		return nil, errors.New("netease: response too large")
+	}
+	return respBody, nil
 }
 
 func (self *Netease) weapi(data map[string]string) (map[string]string, error) {
@@ -133,7 +134,7 @@ func (self *Netease) toSong(result gjson.Result) *Song {
 	return song
 }
 
-func (self *Netease) Song(id string) (*Song, error) {
+func (self *Netease) Song(ctx context.Context, id string) (*Song, error) {
 	b, _ := json.Marshal([]any{map[string]string{
 		"id": id,
 	}})
@@ -149,7 +150,7 @@ func (self *Netease) Song(id string) (*Song, error) {
 
 	}
 
-	res, err := self.request("POST", "https://music.163.com/weapi/v3/song/detail/", params)
+	res, err := self.request(ctx, "POST", "https://music.163.com/weapi/v3/song/detail/", params)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +159,7 @@ func (self *Netease) Song(id string) (*Song, error) {
 	return self.toSong(result), nil
 }
 
-func (self *Netease) SongLink(id string) (*SongLink, error) {
+func (self *Netease) SongLink(ctx context.Context, id string) (*SongLink, error) {
 	data := map[string]string{
 		"br":  fmt.Sprintf("%d", 320*1000),
 		"ids": fmt.Sprintf(`["%s"]`, id),
@@ -172,7 +173,7 @@ func (self *Netease) SongLink(id string) (*SongLink, error) {
 
 	}
 
-	res, err := self.request("POST", "http://music.163.com/weapi/song/enhance/player/url", params)
+	res, err := self.request(ctx, "POST", "http://music.163.com/weapi/song/enhance/player/url", params)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +190,7 @@ func (self *Netease) SongLink(id string) (*SongLink, error) {
 	return link, nil
 }
 
-func (self *Netease) Album(id string) (*Album, error) {
+func (self *Netease) Album(ctx context.Context, id string) (*Album, error) {
 	data := map[string]string{
 		"id":            id,
 		"total":         "true",
@@ -207,7 +208,7 @@ func (self *Netease) Album(id string) (*Album, error) {
 
 	}
 
-	res, err := self.request("POST", fmt.Sprintf(`https://music.163.com/weapi/v1/album/%s`, id), params)
+	res, err := self.request(ctx, "POST", fmt.Sprintf(`https://music.163.com/weapi/v1/album/%s`, id), params)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +229,7 @@ func (self *Netease) Album(id string) (*Album, error) {
 	return album, nil
 }
 
-func (self *Netease) Lyric(id string) (*Lyric, error) {
+func (self *Netease) Lyric(ctx context.Context, id string) (*Lyric, error) {
 	data := map[string]string{
 		"id": id,
 		"os": "linux",
@@ -245,7 +246,7 @@ func (self *Netease) Lyric(id string) (*Lyric, error) {
 
 	}
 
-	res, err := self.request("POST", "https://music.163.com/weapi/song/lyric", params)
+	res, err := self.request(ctx, "POST", "https://music.163.com/weapi/song/lyric", params)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +260,7 @@ func (self *Netease) Lyric(id string) (*Lyric, error) {
 	return lrc, nil
 }
 
-func (self *Netease) Artist(id string) (*Artist, error) {
+func (self *Netease) Artist(ctx context.Context, id string) (*Artist, error) {
 	data := map[string]string{
 		"id":            id,
 		"top":           "50",
@@ -275,7 +276,7 @@ func (self *Netease) Artist(id string) (*Artist, error) {
 
 	}
 
-	res, err := self.request("POST", fmt.Sprintf("https://music.163.com/weapi/v1/artist/%s", id), params)
+	res, err := self.request(ctx, "POST", fmt.Sprintf("https://music.163.com/weapi/v1/artist/%s", id), params)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +297,7 @@ func (self *Netease) Artist(id string) (*Artist, error) {
 	return ins, nil
 }
 
-func (self *Netease) Playlist(id string) (*Playlist, error) {
+func (self *Netease) Playlist(ctx context.Context, id string) (*Playlist, error) {
 	data := map[string]string{
 		"id": id,
 		"n":  "1000",
@@ -312,7 +313,7 @@ func (self *Netease) Playlist(id string) (*Playlist, error) {
 
 	}
 
-	res, err := self.request("POST", "https://music.163.com/weapi/v6/playlist/detail", params)
+	res, err := self.request(ctx, "POST", "https://music.163.com/weapi/v6/playlist/detail", params)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +334,7 @@ func (self *Netease) Playlist(id string) (*Playlist, error) {
 	return ins, nil
 }
 
-func (self *Netease) Search(keyword string) ([]*Song, error) {
+func (self *Netease) Search(ctx context.Context, keyword string) ([]*Song, error) {
 	data := map[string]string{
 		"s":      keyword,
 		"type":   "1",
@@ -350,7 +351,7 @@ func (self *Netease) Search(keyword string) ([]*Song, error) {
 
 	}
 
-	res, err := self.request("POST", "https://music.163.com/weapi/cloudsearch/pc", params)
+	res, err := self.request(ctx, "POST", "https://music.163.com/weapi/cloudsearch/pc", params)
 	if err != nil {
 		return nil, err
 	}

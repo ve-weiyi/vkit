@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -94,45 +95,46 @@ func fetchGSM(brandSlug, deviceSlug string) error {
 
 // fetchMusic 逐个验证网易云各接口，返回首个失败。
 func fetchMusic(keyword, songID, albumID, artistID, playlistID string) error {
+	ctx := context.Background()
 	ns := netease.New()
 
-	search, err := ns.Search(keyword)
+	search, err := ns.Search(ctx, keyword)
 	if err != nil {
 		return fmt.Errorf("Search(%s): %w", keyword, err)
 	}
 	fmt.Printf("搜索 %q 命中 %d 首\n", keyword, len(search))
 
-	song, err := ns.Song(songID)
+	song, err := ns.Song(ctx, songID)
 	if err != nil {
 		return fmt.Errorf("Song(%s): %w", songID, err)
 	}
 	printJSON("song "+songID, song)
 
-	link, err := ns.SongLink(songID)
+	link, err := ns.SongLink(ctx, songID)
 	if err != nil {
 		return fmt.Errorf("SongLink(%s): %w", songID, err)
 	}
 	printJSON("songLink "+songID, link)
 
-	lyric, err := ns.Lyric(songID)
+	lyric, err := ns.Lyric(ctx, songID)
 	if err != nil {
 		return fmt.Errorf("Lyric(%s): %w", songID, err)
 	}
 	printJSON("lyric "+songID, lyric)
 
-	album, err := ns.Album(albumID)
+	album, err := ns.Album(ctx, albumID)
 	if err != nil {
 		return fmt.Errorf("Album(%s): %w", albumID, err)
 	}
 	printJSON("album "+albumID, album)
 
-	artist, err := ns.Artist(artistID)
+	artist, err := ns.Artist(ctx, artistID)
 	if err != nil {
 		return fmt.Errorf("Artist(%s): %w", artistID, err)
 	}
 	printJSON("artist "+artistID, artist)
 
-	playlist, err := ns.Playlist(playlistID)
+	playlist, err := ns.Playlist(ctx, playlistID)
 	if err != nil {
 		return fmt.Errorf("Playlist(%s): %w", playlistID, err)
 	}

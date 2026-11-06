@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/ve-weiyi/vkit/adapter/oauthx"
-	"github.com/ve-weiyi/vkit/x/maskx"
 	"github.com/ve-weiyi/vkit/x/randomx"
+	"github.com/ve-weiyi/vkit/x/redactx"
 )
 
 func main() {
@@ -68,10 +68,10 @@ func main() {
 		fmt.Printf("platform=%s\nopen_id=%s\nname=%s\nnick_name=%s\navatar=%s\n",
 			platform, user.OpenId, user.Name, user.NickName, user.Avatar)
 		if user.Email != "" {
-			fmt.Printf("email=%s\n", maskx.MaskEmail(user.Email))
+			fmt.Printf("email=%s\n", redactx.MaskEmail(user.Email))
 		}
 		if user.Mobile != "" {
-			fmt.Printf("mobile=%s\n", maskx.MaskPhone(user.Mobile))
+			fmt.Printf("mobile=%s\n", redactx.MaskPhone(user.Mobile))
 		}
 	default:
 		fatalf("未知 mode %q，支持 url | exchange", *mode)
